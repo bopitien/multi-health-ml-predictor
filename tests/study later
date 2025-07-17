@@ -1,0 +1,95 @@
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+
+
+
+# Feature selection
+selected_features = [
+    'systolic_bp', 'cholesterol_level',
+    'age_years', 'diastolic_bp', 'weight_kg', 'physical_activity'
+]
+X = df[selected_features]
+y = df['heart_disease']
+
+# Split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Preprocessor
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), selected_features)
+    ]
+)
+
+
+
+
+# Define pipelines
+rf_pipeline = Pipeline([
+    ('preprocessor', preprocessor),
+    ('classifier', RandomForestClassifier(random_state=42))
+])
+
+
+# Train models
+rf_pipeline.fit(X_train, y_train)
+
+
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, classification_report
+
+# Evaluation function
+def evaluate_model(model, name):
+    y_pred = model.predict(X_test)
+    y_proba = model.predict_proba(X_test)[:, 1]
+    print(f"\n📌 {name} Evaluation Results:")
+    print("Accuracy:", accuracy_score(y_test, y_pred))
+    print("Precision:", precision_score(y_test, y_pred))
+    print("Recall:", recall_score(y_test, y_pred))
+    print("F1 Score:", f1_score(y_test, y_pred))
+    print("ROC AUC Score:", roc_auc_score(y_test, y_proba))
+    print("\nClassification Report:\n", classification_report(y_test, y_pred))
+
+    evaluate_model(rf_pipeline, " Random Forest")
+
+
+
+
+
+    ###   pattern 2 ##############################################
+
+    from imblearn.pipeline import Pipeline as ImbPipeline
+from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
+
+# New pipeline
+rf_pipeline = ImbPipeline([
+    ('smote', SMOTE(random_state=42)),
+    ('preprocessor', preprocessor),
+    ('classifier', RandomForestClassifier(random_state=42, class_weight='balanced'))
+])
+
+# Hyperparameter grid
+rf_param_grid = {
+    'classifier__n_estimators': [100, 200, 300],
+    'classifier__max_depth': [10, 20, None],
+    'classifier__min_samples_split': [2, 5],
+    'classifier__min_samples_leaf': [1, 2]
+}
+
+# Random search with CV
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+rf_search = RandomizedSearchCV(
+    rf_pipeline, rf_param_grid,
+    scoring='f1', cv=cv, n_iter=20,
+    n_jobs=-1, random_state=42
+)
+
+# Train
+rf_search.fit(X_train, y_train)
+
+# Evaluate
+evaluate_model(rf_search.best_estimator_, "Tuned Random Forest")
